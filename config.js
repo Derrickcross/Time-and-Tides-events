@@ -1,0 +1,1 @@
+window.__TT_API_BASE__='';
