@@ -1,12 +1,12 @@
 window.__TT_API_BASE__='';
-window.TT_CONTACT_NUMBERS={office:'254731099723',tel:'254729842062'};
-window.TT_ADMIN_WHATSAPP=localStorage.getItem('ttAdminWhatsApp')||window.TT_CONTACT_NUMBERS.office;
+window.TT_CONTACT_NUMBERS={tel:'254731099723',office:'254729842062'};
+window.TT_ADMIN_WHATSAPP=localStorage.getItem('ttAdminWhatsApp')||window.TT_CONTACT_NUMBERS.tel;
 
 function ttAddContacts(){
   const contact=document.getElementById('contact');
   if(!contact||contact.querySelector('.tt-dual-contacts'))return;
   const wrap=document.createElement('div');wrap.className='tt-dual-contacts';
-  wrap.innerHTML=`<div><strong>Office</strong><p>📞 <a href="tel:+254731099723">0731 099 723</a></p><a class="btn ghost dark" href="https://wa.me/254731099723">WhatsApp Office</a></div><div><strong>Tel</strong><p>📞 <a href="tel:+254729842062">0729 842 062</a></p><a class="btn ghost dark" href="https://wa.me/254729842062">WhatsApp Tel</a></div>`;
+  wrap.innerHTML=`<div><strong>Tel</strong><p>📞 <a href="tel:+254731099723">0731 099 723</a></p><a class="btn ghost dark" href="https://wa.me/254731099723">WhatsApp Tel</a></div><div><strong>Office</strong><p>📞 <a href="tel:+254729842062">0729 842 062</a></p><a class="btn ghost dark" href="https://wa.me/254729842062">WhatsApp Office</a></div>`;
   contact.appendChild(wrap);
 }
 
@@ -14,7 +14,7 @@ function ttAddAdminContactChoice(){
   const content=document.getElementById('adminContent');
   if(!content||content.querySelector('#ttAdminContactChoice'))return;
   const box=document.createElement('div');box.id='ttAdminContactChoice';box.className='admin-contact-choice';
-  box.innerHTML=`<label><b>Booking WhatsApp destination</b><select id="ttAdminWhatsAppSelect"><option value="254731099723">Office — 0731 099 723</option><option value="254729842062">Tel — 0729 842 062</option></select></label><small>Choose which Time & Tides number receives new customer booking requests on WhatsApp.</small>`;
+  box.innerHTML=`<label><b>Booking WhatsApp destination</b><select id="ttAdminWhatsAppSelect"><option value="254731099723">Tel — 0731 099 723</option><option value="254729842062">Office — 0729 842 062</option></select></label><small>Choose which Time & Tides number receives new customer booking requests on WhatsApp.</small>`;
   const tabs=content.querySelector('.admin-tabs');
   if(tabs)tabs.insertAdjacentElement('afterend',box);else content.prepend(box);
   const select=box.querySelector('select');select.value=window.TT_ADMIN_WHATSAPP;select.addEventListener('change',()=>{window.TT_ADMIN_WHATSAPP=select.value;localStorage.setItem('ttAdminWhatsApp',select.value);});
