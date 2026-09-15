@@ -20,6 +20,28 @@ function ttAddAdminContactChoice(){
   const select=box.querySelector('select');select.value=window.TT_ADMIN_WHATSAPP;select.addEventListener('change',()=>{window.TT_ADMIN_WHATSAPP=select.value;localStorage.setItem('ttAdminWhatsApp',select.value);});
 }
 
+function ttNormalizeSmsNumber(value){
+  let p=String(value||'').trim().replace(/[\s()\-]/g,'');
+  if(p.startsWith('00'))p='+'+p.slice(2);
+  if(/^0(?:7|1)\d{8}$/.test(p))p='+254'+p.slice(1);
+  if(/^254(?:7|1)\d{8}$/.test(p))p='+'+p;
+  return p;
+}
+
+function ttAddSmsButtons(){
+  document.querySelectorAll('#adminBody .admin-item').forEach(item=>{
+    if(item.querySelector('.tt-sms-button'))return;
+    const text=item.textContent||'';
+    const match=text.match(/(?:Tel|Phone)?\s*[:•]?\s*(\+?\d[\d\s()\-]{6,})/i);
+    if(!match)return;
+    const phone=ttNormalizeSmsNumber(match[1]);
+    if(!phone)return;
+    const actions=item.querySelector('.admin-actions')||item;
+    const a=document.createElement('a');a.className='btn ghost dark tt-sms-button';a.href='sms:'+phone;a.textContent='SMS Customer';a.style.display='inline-block';a.style.textDecoration='none';
+    actions.appendChild(a);
+  });
+}
+
 document.addEventListener('DOMContentLoaded',()=>{
   const phone=document.getElementById('phone');
   const form=document.getElementById('bookingForm');
@@ -39,12 +61,12 @@ document.addEventListener('DOMContentLoaded',()=>{
     form.addEventListener('submit',e=>{const n=normalize(phone.value);if(!n){e.preventDefault();e.stopImmediatePropagation();phone.setCustomValidity('Please enter a valid international phone number with a country code, such as +254712345678 or +447123456789. Kenyan 07 and 01 numbers are also accepted.');phone.reportValidity();return;}phone.setCustomValidity('');phone.value=n;},true);
   }
   ttAddContacts();
-  const observer=new MutationObserver(()=>{ttAddContacts();ttAddAdminContactChoice();});
+  const observer=new MutationObserver(()=>{ttAddContacts();ttAddAdminContactChoice();ttAddSmsButtons();});
   observer.observe(document.body,{childList:true,subtree:true});
   ttAddAdminContactChoice();
+  ttAddSmsButtons();
 });
 
-// The public booking form sends new booking notifications to the admin-selected Time & Tides number.
 const ttOriginalOpen=window.open;
 window.open=function(url,...args){
   if(typeof url==='string'&&url.startsWith('https://wa.me/254731099723?text=')&&window.TT_ADMIN_WHATSAPP){
