@@ -7,4 +7,22 @@
 <section id="gallery" class="section gallery"><p class="eyebrow">SEE THE VENUE</p><h2>Take a look around</h2><div class="video-grid"><video src="assets/venue1.mp4" muted playsinline controls></video><video src="assets/venue2.mp4" muted playsinline controls></video><video src="assets/venue3.mp4" muted playsinline controls></video><video src="assets/venue4.mp4" muted playsinline controls></video><video src="assets/venue5.mp4" muted playsinline controls></video><video src="assets/ae5632eb49720ec57478f21d0920e2f9.mp4" muted playsinline controls></video><video src="assets/2026-09-13-211610849.mp4" muted playsinline controls></video></div></section>
 <section id="book" class="section booking"><div><p class="eyebrow">RESERVE THE VENUE</p><h2>Book your event</h2><p>Tell us what you are planning. We'll receive your request on WhatsApp.</p><div class="payment-note"><b>Payment:</b> Cash on site or Lipa na M-PESA (Buy Goods & Services), Till Number <b>6366527</b>. Payment is due 5 days before your booked date.</div></div><form id="bookingForm"><label>Your name<input id="name" required></label><label>Phone number<input id="phone" type="tel" required></label><label>Event type<select id="type" required><option value="">Choose one</option><option>Wedding</option><option>Birthday party</option><option>Wedding reception</option><option>Conference meeting</option><option>School graduation</option><option>Private party</option><option>Other</option></select></label><label>Preferred date<input id="date" type="date" required></label><label>Guests<input id="guests" type="number" min="1" placeholder="e.g. 50"></label><label>Message<textarea id="message" rows="4" placeholder="Tell us anything else..."></textarea></label><button class="btn primary" type="submit">Send Booking Request</button></form></section>
 <section id="contact" class="contact"><p class="eyebrow">COME THROUGH</p><h2>Time and Tides Events Beach Fun Events</h2><p>Punguvilla, Shelly Beach Road</p><p>📞 <a href="tel:0731099723">0731 099723</a></p><a class="btn ghost dark" href="https://wa.me/254731099723">Chat on WhatsApp</a></section>
-</main><footer>© 2026 Time and Tides Events Beach Fun Events • Punguvilla, Shelly Beach Road</footer><script src="config.js"></script><script src="app.js"></script></body></html>
+</main><footer>© 2026 Time and Tides Events Beach Fun Events • Punguvilla, Shelly Beach Road</footer><script src="config.js"></script><script src="app.js"></script><script>
+window.sendInvoiceWhatsApp=async function(invId,bookingId){
+  try{
+    const base=(window.__TT_API_BASE__||'').replace(/\/$/,'');
+    const headers={"Content-Type":"application/json"};
+    const [ir,br]=await Promise.all([fetch(base+'/api/invoices',{credentials:'include',headers}),fetch(base+'/api/bookings',{credentials:'include',headers})]);
+    const invoices=await ir.json(), bookings=await br.json();
+    if(!ir.ok||!br.ok) throw new Error('Please sign in to the admin area again.');
+    const inv=(invoices.invoices||[]).find(x=>x.id===invId), b=(bookings.bookings||[]).find(x=>x.id===bookingId);
+    if(!inv||!b) throw new Error('Invoice or booking could not be found.');
+    let phone=String(b.phone||'').trim().replace(/[\s()\-]/g,'');
+    if(phone.startsWith('+254')) phone=phone.slice(1); else if(phone.startsWith('07')||phone.startsWith('01')) phone='254'+phone.slice(1); else if(!phone.startsWith('254')) phone=phone.replace(/^\+/,'');
+    const message=`Hello ${b.name},\n\nTime & Tides Events Invoice ${inv.number}\nEvent: ${b.type}\nVenue date: ${b.date}\nTotal: KSh ${inv.amount}\nPayment due: ${inv.dueDate}\n\nPayment options:\n1. Cash — pay on site 5 days before the booked date.\n2. Lipa na M-PESA — Buy Goods & Services — Till Number: 6366527 — pay 5 days before the booked date.\n\nThank you, Time & Tides Events.`;
+    const url='https://wa.me/'+phone+'?text='+encodeURIComponent(message);
+    const popup=window.open(url,'_blank','noopener,noreferrer');
+    if(!popup) window.location.href=url;
+  }catch(err){alert(err.message||'Unable to open WhatsApp.');}
+};
+</script></body></html>
