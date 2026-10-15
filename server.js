@@ -22,9 +22,9 @@ async function api(req,res,u){if(req.method==='GET'&&u.pathname==='/health')retu
  if(req.method==='GET'&&u.pathname==='/api/blocked-dates'){if(!(await authed(req)))return json(res,401,{error:'Admin access required'});if(pool&&dbReady){const r=await pool.query('SELECT event_date FROM blocked_dates ORDER BY event_date');return json(res,200,{dates:r.rows.map(x=>x.event_date.toISOString().slice(0,10))})}return json(res,200,{dates:loadDemo().blocked})}
  if(req.method==='POST'&&u.pathname==='/api/blocked-dates'){if(!(await authed(req)))return json(res,401,{error:'Admin access required'});const b=await body(req);if(!/^\d{4}-\d{2}-\d{2}$/.test(b.date))return json(res,400,{error:'Valid date required'});if(pool&&dbReady)await pool.query('INSERT INTO blocked_dates(event_date) VALUES($1) ON CONFLICT DO NOTHING',[b.date]);else{const d=loadDemo();if(!d.blocked.includes(b.date))d.blocked.push(b.date);saveDemo(d)}return json(res,201,{ok:true})}
  const bd=u.pathname.match(/^\/api\/blocked-dates\/([^/]+)$/);if(bd&&req.method==='DELETE'){if(!(await authed(req)))return json(res,401,{error:'Admin access required'});const d=decodeURIComponent(bd[1]);if(pool&&dbReady)await pool.query('DELETE FROM blocked_dates WHERE event_date=$1',[d]);else{const x=loadDemo();x.blocked=x.blocked.filter(q=>q!==d);saveDemo(x)}return json(res,200,{ok:true})}
- if(req.method==='POST'&&/^\\/api\\/invoices\\/[^/]+\\/send-whatsapp$/.test(u.pathname)){
+ if(req.method==='POST'&&/^\/api\/invoices\/[^/]+\/send-whatsapp$/.test(u.pathname)){
   if(!(await authed(req)))return json(res,401,{error:'Admin access required'});
-  const match=u.pathname.match(/^\\/api\\/invoices\\/([^/]+)\\/send-whatsapp$/),invoiceId=decodeURIComponent(match[1]),b=await body(req);
+  const match=u.pathname.match(/^\/api\/invoices\/([^/]+)\/send-whatsapp$/),invoiceId=decodeURIComponent(match[1]),b=await body(req);
   if(typeof b.pdfBase64!=='string'||!b.pdfBase64)return json(res,400,{error:'A PDF invoice is required.'});
   if(b.pdfBase64.length>850000)return json(res,413,{error:'The invoice PDF is too large to send.'});
   const accessToken=process.env.WHATSAPP_ACCESS_TOKEN,phoneNumberId=process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -37,11 +37,11 @@ async function api(req,res,u){if(req.method==='GET'&&u.pathname==='/health')retu
    const d=loadDemo();inv=d.invoices.find(x=>String(x.id)===String(invoiceId))||null;booking=inv?d.bookings.find(x=>String(x.id)===String(inv.bookingId))||null:null;
   }
   if(!inv||!booking)return json(res,404,{error:'Invoice or linked booking was not found.'});
-  let rawPhone=String(booking.phone||'').trim().replace(/[\\s()\\-]/g,'');
-  if(rawPhone.startsWith('+'))rawPhone=rawPhone.slice(1);else if(rawPhone.startsWith('00'))rawPhone=rawPhone.slice(2);else if(/^0(?:7|1)\\d{8}$/.test(rawPhone))rawPhone='254'+rawPhone.slice(1);
-  const to=rawPhone.replace(/\\D/g,'');
-  if(!/^\\d{7,15}$/.test(to))return json(res,400,{error:'The customer phone number is not a valid international WhatsApp number.'});
-  const encoded=b.pdfBase64.replace(/^data:application\\/pdf;base64,/,'');
+  let rawPhone=String(booking.phone||'').trim().replace(/[\s()\-]/g,'');
+  if(rawPhone.startsWith('+'))rawPhone=rawPhone.slice(1);else if(rawPhone.startsWith('00'))rawPhone=rawPhone.slice(2);else if(/^0(?:7|1)\d{8}$/.test(rawPhone))rawPhone='254'+rawPhone.slice(1);
+  const to=rawPhone.replace(/\D/g,'');
+  if(!/^\d{7,15}$/.test(to))return json(res,400,{error:'The customer phone number is not a valid international WhatsApp number.'});
+  const encoded=b.pdfBase64.replace(/^data:application\/pdf;base64,/,'');
   const pdf=Buffer.from(encoded,'base64');
   if(pdf.length<8||pdf.subarray(0,5).toString()!=='%PDF-')return json(res,400,{error:'The invoice attachment is not a valid PDF.'});
   try{
