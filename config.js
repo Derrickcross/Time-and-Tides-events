@@ -97,7 +97,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       const booking=(bookings.bookings||[]).find(x=>String(x.id)===String(bookingId));
       if(!invoice||!booking)throw new Error('Could not find the saved invoice and its booking.');
       if(typeof window.invoicePdfBlob!=='function')throw new Error('PDF generator is not available. Refresh the website and try again.');
-      const pdf=window.invoicePdfBlob(invoice,booking);
+      const pdf=await window.invoicePdfBlob(invoice,booking);
       const bytes=new Uint8Array(await pdf.arrayBuffer());
       let binary='';
       for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
