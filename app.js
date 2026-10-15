@@ -46,8 +46,53 @@ function showInvoice(inv,b){if(!requireAdmin())return;let modal=document.getElem
 function invoicePlainLines(inv,b){const lines=['TIME & TIDES EVENTS - BEACH FUN EVENTS','INVOICE: '+inv.number,'Issued: '+new Date(inv.created||Date.now()).toLocaleDateString('en-KE'),'Payment due: '+inv.dueDate,'','BILL TO: '+b.name,'Phone: '+b.phone,'Event: '+b.type,'Venue date: '+b.date,'Location: Punguvilla, Shelly Beach Road','','PRODUCT / SERVICE | QTY | UNIT PRICE (KSh) | AMOUNT (KSh)'];(inv.items||[]).forEach(i=>lines.push(i.description+' | '+i.quantity+' | '+Number(i.unitPrice||0).toFixed(2)+' | '+(Number(i.quantity||0)*Number(i.unitPrice||0)).toFixed(2)));lines.push('','TOTAL: KSh '+Number(inv.amount||0).toFixed(2),'','PAYMENT OPTIONS','Cash on site, due 5 days before the booked date.','Lipa na M-PESA: Buy Goods & Services, Till Number 6366527.','Payment due 5 days before the booked date.','','Thank you for choosing Time & Tides Events!');return lines}
 function invoiceDocBlob(inv,b){const htmlDoc='<!doctype html><html><head><meta charset="utf-8"><title>Invoice '+escapeText(inv.number)+'</title><style>body{font-family:Arial,sans-serif;color:#17323a;margin:36px}h1{color:#087b83}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{border:1px solid #cddddd;padding:8px;text-align:left}th{background:#eaf4f4}.total{font-size:20px;font-weight:bold;text-align:right;margin-top:24px}.payment{background:#f3f7f7;padding:14px;margin-top:22px}</style></head><body>'+invoiceHtml(inv,b).replace(/class="eyebrow"/g,'class="eyebrow"').replace(/class="invoice-preview-table"/g,'')+'</body></html>';return new Blob(['\ufeff',htmlDoc],{type:'application/msword'})}
 function pdfEscape(s){return String(s).normalize('NFKD').replace(/[^\x20-\x7E]/g,' ').replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)')}
-function invoicePdfBlob(inv,b){const lines=invoicePlainLines(inv,b).flatMap(line=>{const words=String(line).split(/\s+/),out=[];let cur='';for(const word of words){if((cur+' '+word).trim().length>88){out.push(cur);cur=word}else cur=(cur+' '+word).trim()}out.push(cur);return out});const chunks=[];for(let i=0;i<lines.length;i+=48)chunks.push(lines.slice(i,i+48));const objects=[];const pageIds=[];objects.push('<< /Type /Catalog /Pages 2 0 R >>');objects.push('');chunks.forEach((page,idx)=>{const pageId=3+idx*2,contentId=pageId+1;pageIds.push(pageId+' 0 R');let stream='BT /F1 10 Tf 48 790 Td 13 TL ';page.forEach((line,n)=>{if(n)stream+='T* ';stream+='('+pdfEscape(line)+') Tj ';});stream+='ET';objects.push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 842] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> /Contents '+contentId+' 0 R >>');objects.push('<< /Length '+stream.length+' >>\nstream\n'+stream+'\nendstream')});objects[1]='<< /Type /Pages /Kids ['+pageIds.join(' ')+'] /Count '+pageIds.length+' >>';let pdf='%PDF-1.4\n',offsets=[0];objects.forEach((obj,i)=>{offsets.push(pdf.length);pdf+=(i+1)+' 0 obj\n'+obj+'\nendobj\n'});const xref=pdf.length;pdf+='xref\n0 '+(objects.length+1)+'\n0000000000 65535 f \n';for(let i=1;i<offsets.length;i++)pdf+=String(offsets[i]).padStart(10,'0')+' 00000 n \n';pdf+='trailer\n<< /Size '+(objects.length+1)+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF';return new Blob([pdf],{type:'application/pdf'})}
+async function invoicePdfBlob(inv,b){
+  const lines=invoicePlainLines(inv,b).slice(1).flatMap(line=>{const words=String(line).split(/\s+/),out=[];let cur='';for(const word of words){if((cur+' '+word).trim().length>88){out.push(cur);cur=word}else cur=(cur+' '+word).trim()}out.push(cur);return out});
+  let jpeg='',imageWidth=1,imageHeight=1;
+  try{
+    const logo=new Image();logo.src='/assets/file_00000000d86482118bdd2a6ac4b6d4eb.png';
+    await new Promise((resolve,reject)=>{logo.onload=resolve;logo.onerror=reject});
+    const canvas=document.createElement('canvas');canvas.width=500;canvas.height=350;
+    const ctx=canvas.getContext('2d');ctx.fillStyle='#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);
+    const scale=Math.min(470/logo.naturalWidth,320/logo.naturalHeight);
+    imageWidth=Math.max(1,Math.round(logo.naturalWidth*scale));imageHeight=Math.max(1,Math.round(logo.naturalHeight*scale));
+    ctx.drawImage(logo,(canvas.width-imageWidth)/2,(canvas.height-imageHeight)/2,imageWidth,imageHeight);
+    jpeg=atob(canvas.toDataURL('image/jpeg',0.9).split(',')[1]);
+  }catch(e){console.warn('Invoice logo could not be loaded; generating invoice without image logo.',e)}
+  const chunks=[];let cursor=0;chunks.push(lines.slice(cursor,cursor+44));cursor+=44;while(cursor<lines.length){chunks.push(lines.slice(cursor,cursor+50));cursor+=50}
+  if(!chunks.length)chunks.push([]);
+  const objects=[];
+  objects[1]='<< /Type /Catalog /Pages 2 0 R >>';
+  objects[2]='';
+  objects[3]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
+  if(jpeg)objects[4]='<< /Type /XObject /Subtype /Image /Width 500 /Height 350 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+jpeg.length+' >>\nstream\n'+jpeg+'\nendstream';
+  const pageIds=[];
+  chunks.forEach((page,idx)=>{
+    const pageId=5+idx*2,contentId=pageId+1;pageIds.push(pageId+' 0 R');
+    let stream='';
+    if(idx===0){
+      if(jpeg)stream+='q 86 0 0 60 48 756 cm /Logo Do Q\n';
+      stream+='BT /F1 20 Tf 145 792 Td ('+pdfEscape('Time and Tides Events')+') Tj 0 -20 Td /F1 12 Tf ('+pdfEscape('Beach Fun Events')+') Tj ET\n';
+      stream+='BT /F1 26 Tf 430 785 Td (INVOICE) Tj ET\n';
+    }else{
+      stream+='BT /F1 12 Tf 48 800 Td ('+pdfEscape('TIME AND TIDES EVENTS • BEACH FUN EVENTS'.replace('•','-'))+') Tj ET\n';
+    }
+    stream+='BT /F1 10 Tf 48 '+(idx===0?'724':'770')+' Td 13 TL ';
+    page.forEach((line,n)=>{if(n)stream+='T* ';stream+='('+pdfEscape(line)+') Tj ';});
+    stream+='ET';
+    const xobj=jpeg?'/XObject << /Logo 4 0 R >>':'';
+    objects[pageId]='<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 842] /Resources << /Font << /F1 3 0 R >> '+xobj+' >> /Contents '+contentId+' 0 R >>';
+    objects[contentId]='<< /Length '+stream.length+' >>\nstream\n'+stream+'\nendstream';
+  });
+  objects[2]='<< /Type /Pages /Kids ['+pageIds.join(' ')+'] /Count '+pageIds.length+' >>';
+  let pdf='%PDF-1.4\n',offsets=[0];
+  for(let i=1;i<objects.length;i++){if(objects[i]===undefined)continue;offsets[i]=pdf.length;pdf+=i+' 0 obj\n'+objects[i]+'\nendobj\n'}
+  const xref=pdf.length;pdf+='xref\n0 '+objects.length+'\n0000000000 65535 f \n';
+  for(let i=1;i<objects.length;i++)pdf+=String(offsets[i]||0).padStart(10,'0')+' 00000 n \n';
+  pdf+='trailer\n<< /Size '+objects.length+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF';
+  return new Blob([pdf],{type:'application/pdf'});
+}
 window.downloadInvoiceWord=function(){if(!requireAdmin())return;const m=document.getElementById('invoiceModal'),inv=adminInvoices.find(x=>x.id===m?.dataset.invoiceId),b=adminBookings.find(x=>x.id===m?.dataset.bookingId);if(!inv||!b)return;downloadBlob(invoiceDocBlob(inv,b),'Invoice-'+inv.number+'.doc')};
 function downloadBlob(blob,name){const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=name;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),2000)}
-window.printInvoice=()=>{if(!requireAdmin())return;const m=document.getElementById('invoiceModal'),inv=adminInvoices.find(x=>x.id===m?.dataset.invoiceId),b=adminBookings.find(x=>x.id===m?.dataset.bookingId);if(!inv||!b)return;const blob=invoicePdfBlob(inv,b);downloadBlob(blob,'Invoice-'+inv.number+'.pdf')};
-window.sendInvoiceWhatsApp=async function(){if(!requireAdmin())return;const m=document.getElementById('invoiceModal'),inv=adminInvoices.find(x=>x.id===m?.dataset.invoiceId),b=adminBookings.find(x=>x.id===m?.dataset.bookingId);if(!inv||!b)return;const word=invoiceDocBlob(inv,b),pdf=invoicePdfBlob(inv,b),wordFile=new File([word],'Invoice-'+inv.number+'.doc',{type:'application/msword'}),pdfFile=new File([pdf],'Invoice-'+inv.number+'.pdf',{type:'application/pdf'});let phone=String(b.phone||'').trim().replace(/[\s()\-]/g,'');if(phone.startsWith('+'))phone=phone.slice(1);else if(phone.startsWith('07')||phone.startsWith('01'))phone='254'+phone.slice(1);else if(phone.startsWith('00'))phone=phone.slice(2);const message='Hello '+b.name+', please find your Time & Tides Events invoice '+inv.number+' in Word and PDF format. Total: KSh '+Number(inv.amount||0).toLocaleString('en-KE',{minimumFractionDigits:2})+'. Payment due: '+inv.dueDate+'.';try{if(navigator.share&&navigator.canShare&&navigator.canShare({files:[wordFile,pdfFile]})){await navigator.share({files:[wordFile,pdfFile],title:'Time & Tides Invoice '+inv.number,text:message});return}}catch(e){if(e.name==='AbortError')return}downloadBlob(word,'Invoice-'+inv.number+'.doc');downloadBlob(pdf,'Invoice-'+inv.number+'.pdf');const url='https://wa.me/'+phone+'?text='+encodeURIComponent(message);window.open(url,'_blank','noopener,noreferrer');alert('Both invoice files have been downloaded. In WhatsApp, open the customer chat and attach Invoice-'+inv.number+'.doc and Invoice-'+inv.number+'.pdf.');};
+window.printInvoice=()=>{if(!requireAdmin())return;const m=document.getElementById('invoiceModal'),inv=adminInvoices.find(x=>x.id===m?.dataset.invoiceId),b=adminBookings.find(x=>x.id===m?.dataset.bookingId);if(!inv||!b)return;const blob=await invoicePdfBlob(inv,b);downloadBlob(blob,'Invoice-'+inv.number+'.pdf')};
+window.sendInvoiceWhatsApp=async function(){if(!requireAdmin())return;const m=document.getElementById('invoiceModal'),inv=adminInvoices.find(x=>x.id===m?.dataset.invoiceId),b=adminBookings.find(x=>x.id===m?.dataset.bookingId);if(!inv||!b)return;const word=invoiceDocBlob(inv,b),pdf=await invoicePdfBlob(inv,b),wordFile=new File([word],'Invoice-'+inv.number+'.doc',{type:'application/msword'}),pdfFile=new File([pdf],'Invoice-'+inv.number+'.pdf',{type:'application/pdf'});let phone=String(b.phone||'').trim().replace(/[\s()\-]/g,'');if(phone.startsWith('+'))phone=phone.slice(1);else if(phone.startsWith('07')||phone.startsWith('01'))phone='254'+phone.slice(1);else if(phone.startsWith('00'))phone=phone.slice(2);const message='Hello '+b.name+', please find your Time & Tides Events invoice '+inv.number+' in Word and PDF format. Total: KSh '+Number(inv.amount||0).toLocaleString('en-KE',{minimumFractionDigits:2})+'. Payment due: '+inv.dueDate+'.';try{if(navigator.share&&navigator.canShare&&navigator.canShare({files:[wordFile,pdfFile]})){await navigator.share({files:[wordFile,pdfFile],title:'Time & Tides Invoice '+inv.number,text:message});return}}catch(e){if(e.name==='AbortError')return}downloadBlob(word,'Invoice-'+inv.number+'.doc');downloadBlob(pdf,'Invoice-'+inv.number+'.pdf');const url='https://wa.me/'+phone+'?text='+encodeURIComponent(message);window.open(url,'_blank','noopener,noreferrer');alert('Both invoice files have been downloaded. In WhatsApp, open the customer chat and attach Invoice-'+inv.number+'.doc and Invoice-'+inv.number+'.pdf.');};
